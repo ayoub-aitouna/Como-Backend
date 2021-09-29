@@ -15,7 +15,7 @@ const usersTabTemp = (user) => {
 };
 
 const Getusers = async () => {
-  const data = await fetch("http://localhost:3000/data/GetAllUsers", {
+  const data = await fetch("https://comoapp.herokuapp.com/data/GetAllUsers", {
     method: "GET",
     mode: "cors",
   });
@@ -28,7 +28,7 @@ const Getusers = async () => {
 Getusers();
 const DeleteUser = async (id) => {
   console.log(id);
-  await fetch(`http://localhost:3000/data/DeleteUser`, {
+  await fetch(`https://comoapp.herokuapp.com/data/DeleteUser`, {
     method: "POST",
     mode: "cors",
     headers: {
