@@ -84,6 +84,7 @@ Router.get("/GetAllCountries", (req, res) => {
     }
   );
 });
+
 Router.get("/GetAllUsers", (req, res) => {
   let sqlQuery = `select * from user`;
   connection.query(sqlQuery, (err, rows, fields) => {
@@ -94,6 +95,36 @@ Router.get("/GetAllUsers", (req, res) => {
     }
   });
 });
+Router.get("/PurchaseCoins", (req, res) => {
+  connection.query(
+    `update user set coins = coins+? where idUser = ?`,
+    [req.query.amount, req.query.UserId],
+    (err, rows, fields) => {
+      if (err) {
+        res.sendStatus(404);
+      } else {
+        res.send(rows);
+      }
+    }
+  );
+});
+Router.post("/DeleteUser", (req, res) => {
+  console.log(req.body.id);
+  connection.query(
+    `update  user set activationStatus=false where idUser = ?`,
+    [req.body.id],
+    (err, rows, fields) => {
+      if (err) {
+        console.log(err);
+        res.sendStatus(404);
+      } else {
+        console.log("Succuse");
+        res.send(rows);
+      }
+    }
+  );
+});
+
 Router.get("/GetPosts", (req, res) => {
   let sqlQuery = `select * from posts where publisherId = ${mysql.escape(
     req.query.Pub
