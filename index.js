@@ -21,8 +21,6 @@ const {
   RtcRole,
   RtmRole,
 } = require("agora-access-token");
-const path = require("path");
-const e = require("cors");
 const appID = "234a76013200476483700abafcdbc559";
 const appCertificate = "efbf884cee804ad39967d94eee86675b";
 const uid = 0;
@@ -39,8 +37,7 @@ app.use("/Messages", Messages);
 app.use("/VideoPlayer", VideoPlayer);
 app.use("/UpdateState", UpdateUserStates);
 const { getFileStream } = require("./s3");
-const { Console } = require("console");
-
+var QueueLog = [];
 app.get("/", (req, res) => {
   res.sendFile(__dirname + "/index.html");
 });
@@ -63,23 +60,21 @@ io.use(function (socket, next) {
   next();
 });
 io.on("connection", (socket) => {
-  socket.on("StrtConnection", (id) => {
-    socket.handshake.session.UserId = id;
-  });
+  let UserId = 0;
   socket.on("Connect", (e) => {
+    UserId = UserId;
     socket.join([
       e.hashId != "undefined"
         ? e.hashId
         : e.ReceiverId != "undefined"
         ? e.ReceiverId
         : "none",
-      e.UserId != "undefined" ? e.UserId : "none",
+      e.UserId != "undefined" ? UserId : "none",
     ]);
     socket.on("Send", (Content) => {
       saveMessagetoDb(Content);
       socket.to(Content.hashId).to(Content.ReceiverId).emit("Send", Content);
     });
-
     socket.on("newCall", (Content) => {
       log(Content);
       socket.to(Content.ReceiverId).emit("newCall", Content);
@@ -112,31 +107,21 @@ io.on("connection", (socket) => {
     });
   });
   socket.on("CallQueue", async (req) => {
-    let enter;
-    socket.handshake.session.UserId = req.id;
-    socket.handshake.session.save();
-    try {
-      enter = await EnterCallueue(req.id, req.into);
-      console.table(["Entrer", enter]);
-    } catch (err) {
-      log(err);
-    }
-    if (enter) {
-      socket.join(req.id);
-      const UserID = await GetRandomUsers(req.UserGender, req.into, req.id);
+    UserId = req.id;
+    socket.join(req.id);
+    const User = GetRandomUserFromQueue(req.UserGender, req.into, req.id);
+    console.log(User);
+    if (User != "undefined" && User != null) {
+      let UserID = User.userid;
       const channel = `${req.id}-channel-call-${UserID}`;
       const token = await Token(channel, RtcRole.PUBLISHER);
-      if (UserID) {
-        try {
-          AddToHistory(req.id, UserID);
-        } catch (err) {}
-        io.to(req.id).to(UserID).emit("CallQueueRes", {
-          FUserID: req.id,
-          SUserID: UserID,
-          Token: token,
-          Channel: channel,
-        });
-      }
+      io.to(req.id).to(UserID).emit("CallQueueRes", {
+        FUserID: req.id,
+        SUserID: UserID,
+        Token: token,
+        Channel: channel,
+      });
+      await AddToHistory(req.id, UserID);
       socket.on("Gift", async (Gift) => {
         console.table(["Gift", Gift]);
         await MakeTransiction(Gift.id, Gift.reciver, Gift.amount);
@@ -148,34 +133,47 @@ io.on("connection", (socket) => {
       });
       socket.on("end", async (req) => {
         try {
-          await endCallueue(req.id);
+          endCallueue(req.id);
         } catch (err) {}
       });
       socket.on("ExitQueue", async (req) => {
-        console.log("ExitQueue Called ");
-
-        try {
-          await endCallueue(req.id);
-          io.to(UserID).emit("ExitQueue", -1);
-        } catch (err) {
-          console.log("Exite Err" + err);
-        }
+        io.to(UserID).emit("ExitQueue", -1);
+      });
+    } else {
+      console.log(`User Enter Queue ${req.id}`);
+      QueueLog.push({
+        userid: req.id,
+        into: req.into,
+        UserGender: req.UserGender,
       });
     }
   });
+
   socket.on("StreamChat", async (LiveChannel) => {
     socket.join(LiveChannel);
     socket.on("join", async (userId) => {
+      UserId = userId;
+      const active = await CheckIfStreaming(userId);
       const data = await GetComment(LiveChannel);
+      const channel = `live-Channel-id-${LiveChannel}`;
+      const token = await Token(
+        channel,
+        userId == LiveChannel ? RtcRole.PUBLISHER : RtcRole.SUBSCRIBER
+      );
+      io.to(LiveChannel).emit("join", {
+        Channel: channel,
+        Token: token,
+        isActive: active,
+      });
       io.to(LiveChannel).emit("NumberOfAudience", {
         NumberOfAudience: socket.adapter.rooms.get(LiveChannel).size,
         comments: data,
       });
     });
-
-    socket.on("leave", (UserId) => {
+    socket.on("leave", async (UserId) => {
+      this.UserId = UserId;
       if (UserId != null && UserId == LiveChannel) {
-        EndLiveStream(UserId);
+        await EndLiveStream(UserId);
         io.to(LiveChannel).emit("NumberOfAudience", {
           NumberOfAudience: -1,
         });
@@ -205,9 +203,9 @@ io.on("connection", (socket) => {
   });
   socket.on("disconnect", async () => {
     try {
-      const endqueue = await endCallueue(socket.handshake.session.UserId);
-      const endlive = await EndLiveStream(socket.handshake.session.UserId);
-      const endstate = await ChangeToOfline(socket.handshake.session.UserId);
+      endCallueue(UserId);
+      await EndLiveStream(UserId);
+      await ChangeToOfline(UserId);
     } catch (err) {}
   });
 });
@@ -250,6 +248,18 @@ const GetRandomUsers = (UserGender, into, id) => {
       }
     );
   });
+};
+
+const GetRandomUserFromQueue = (UserGender, into, id) => {
+  for (let i = 0; i <= QueueLog.length; i++) {
+    let item = QueueLog[Math.floor(Math.random() * QueueLog.length)];
+    if (item != "undefined" && item != null && item.userid != id) {
+      QueueLog.splice(i, 1);
+      return item;
+    } else if (i == QueueLog.length) {
+      return null;
+    }
+  }
 };
 /**
  *
@@ -347,13 +357,16 @@ const saveMessagetoDb = (Content) => {
  * @description added match history to table in mysql
  */
 const AddToHistory = (FuserId, sUserId) => {
-  connection.query(
-    `insert into matchhistory(FirstUserID,SecondtUserID)values(?,?)`,
-    [FuserId, sUserId],
-    (err, res, field) => {
-      if (err) return err;
-    }
-  );
+  return new Promise((res, rej) => {
+    connection.query(
+      `insert into matchhistory(FirstUserID,SecondtUserID)values(?,?)`,
+      [FuserId, sUserId],
+      (err, rows, field) => {
+        if (err) return rej(err);
+        res({ success: 1 });
+      }
+    );
+  });
 };
 /**
  *
@@ -382,18 +395,23 @@ const EnterCallueue = (userid, into) => {
  */
 const endCallueue = (id) => {
   console.log(`user ${id} Leaveed the call`);
-  return new Promise((res, rej) => {
-    connection.query(
-      `delete from callqueue where Userid =?`,
-      [id],
-      (err, result, fields) => {
-        if (err) {
-          console.log("end call failled " + err);
-          rej(null);
-        } else res(result);
-      }
-    );
+  QueueLog.map((item, index) => {
+    if (item.userid === id) {
+      QueueLog.splice(index, 1);
+    }
   });
+  // return new Promise((res, rej) => {
+  //   connection.query(
+  //     `delete from callqueue where Userid =?`,
+  //     [id],
+  //     (err, result, fields) => {
+  //       if (err) {
+  //         console.log("end call failled " + err);
+  //         rej(null);
+  //       } else res(result);
+  //     }
+  //   );
+  // });
 };
 
 /**
@@ -402,6 +420,7 @@ const endCallueue = (id) => {
  * @returns
  */
 const EndLiveStream = (id) => {
+  console.log(`end by ${id}`);
   return new Promise((res, rej) => {
     connection.query(
       `delete from livechatcomments where channelId =?`,
@@ -431,8 +450,8 @@ const EndLiveStream = (id) => {
 const ChangeToOfline = (userId) => {
   return new Promise((res, rej) => {
     connection.query(
-      `delete from LiveChatComments where channelId =?`,
-      [id],
+      `update user set user.isAvailable = false where idUser =?`,
+      [userId],
       (err, results, field) => {
         if (err) return err;
         res(results);
@@ -442,13 +461,21 @@ const ChangeToOfline = (userId) => {
 };
 /**
  *
- * @param {Date} startDate
- * @param {Date} endDate
- * @returns Deferent between dates in seconds
+ * @param {number} UserId
  */
-const getDateDeferent = (startDate, endDate) => {
-  return Math.round((endDate.getTime() - startDate.getTime()) / 1000);
+const CheckIfStreaming = (id) => {
+  return new Promise((resolve, reject) => {
+    connection.query(
+      `select * from user where idUser =?`,
+      [id],
+      (err, rows, field) => {
+        if (err) reject(err);
+        resolve(rows[0].IsStreaming == 1);
+      }
+    );
+  });
 };
+
 server.listen(PORT, () => {
-  console.log(`listening on ${PORT}`);
+  console.log(`Server Started on port ${PORT}`);
 });
