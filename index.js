@@ -116,6 +116,7 @@ io.on("connection", (socket) => {
       let UserID = User.userid;
       const channel = `${req.id}-channel-call-${UserID}`;
       const token = await Token(channel, RtcRole.PUBLISHER);
+      console.table([{ Token: token }, { Channel: channel }, { User: UserID }]);
       io.to(req.id).to(UserID).emit("CallQueueRes", {
         FUserID: req.id,
         SUserID: UserID,
