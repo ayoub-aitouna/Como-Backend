@@ -38,6 +38,7 @@ app.use("/VideoPlayer", VideoPlayer);
 app.use("/UpdateState", UpdateUserStates);
 const { getFileStream } = require("./s3");
 var QueueLog = [];
+var QueueLog = [];
 app.get("/", (req, res) => {
   res.sendFile(__dirname + "/index.html");
 });
