@@ -63,21 +63,21 @@ io.use(function (socket, next) {
 io.on("connection", (socket) => {
   let UserId = 0;
   socket.on("Connect", (e) => {
-    UserId = UserId;
+    UserId = e.UserId;
+
     socket.join([
       e.hashId != "undefined"
         ? e.hashId
         : e.ReceiverId != "undefined"
         ? e.ReceiverId
         : "none",
-      e.UserId != "undefined" ? UserId : "none",
+      e.UserId != "undefined" ? e.UserId : "none",
     ]);
     socket.on("Send", (Content) => {
       saveMessagetoDb(Content);
       socket.to(Content.hashId).to(Content.ReceiverId).emit("Send", Content);
     });
     socket.on("newCall", (Content) => {
-      log(Content);
       socket.to(Content.ReceiverId).emit("newCall", Content);
     });
     socket.on("CallResponse", async (Content) => {
@@ -129,7 +129,6 @@ io.on("connection", (socket) => {
         console.log(err);
       }
       socket.on("Gift", async (Gift) => {
-        console.table(["Gift", Gift]);
         await MakeTransiction(Gift.id, Gift.reciver, Gift.amount);
         io.to(Gift.id).to(Gift.reciver).emit("Gift", {
           amount: Gift.amount,
@@ -146,7 +145,6 @@ io.on("connection", (socket) => {
         io.to(UserID).emit("ExitQueue", -1);
       });
     } else {
-      console.log(`User Enter Queue ${req.id}`);
       QueueLog.push({
         userid: req.id,
         into: req.into,
@@ -155,55 +153,57 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("StreamChat", async (LiveChannel) => {
-    socket.join(LiveChannel);
+  socket.on("StreamChat", async (e) => {
+    console.log({ Channel: e.LiveChannel });
     socket.on("join", async (userId) => {
       UserId = userId;
+      socket.join(e.LiveChannel);
       const active = await CheckIfStreaming(userId);
-      const data = await GetComment(LiveChannel);
-      const channel = `live-Channel-id-${LiveChannel}`;
+      const data = await GetComment(e.LiveChannel);
+      const channel = `live-Channel-id-${e.LiveChannel}`;
       const token = await Token(
         channel,
-        userId == LiveChannel ? RtcRole.PUBLISHER : RtcRole.SUBSCRIBER
+        userId == e.LiveChannel ? RtcRole.PUBLISHER : RtcRole.SUBSCRIBER
       );
-      io.to(LiveChannel).emit("join", {
+      io.to(e.LiveChannel).emit("join", {
         Channel: channel,
         Token: token,
         isActive: active,
       });
-      io.to(LiveChannel).emit("NumberOfAudience", {
-        NumberOfAudience: socket.adapter.rooms.get(LiveChannel).size,
+      io.to(e.LiveChannel).emit("NumberOfAudience", {
+        NumberOfAudience: socket.adapter.rooms.get(e.LiveChannel).size,
         comments: data,
       });
     });
     socket.on("leave", async (UserId) => {
       this.UserId = UserId;
-      if (UserId != null && UserId == LiveChannel) {
+      if (UserId != null && UserId == e.LiveChannel) {
         await EndLiveStream(UserId);
-        io.to(LiveChannel).emit("NumberOfAudience", {
+        io.to(e.LiveChannel).emit("NumberOfAudience", {
           NumberOfAudience: -1,
         });
       } else
-        io.to(LiveChannel).emit("NumberOfAudience", {
-          NumberOfAudience: socket.adapter.rooms.get(LiveChannel).size,
+        io.to(e.LiveChannel).emit("NumberOfAudience", {
+          NumberOfAudience: socket.adapter.rooms.get(e.LiveChannel).size,
         });
     });
 
     socket.on("Comment", async (Comment) => {
+      console.log(e.LiveChannel);
+      io.to(e.LiveChannel).emit("Comment", Comment);
       const IsSuccessfulTransiction = await MakeTransiction(
         Comment.SenderId,
-        parseInt(LiveChannel),
+        parseInt(e.LiveChannel),
         Comment.Gift
       );
       if (IsSuccessfulTransiction == 0) {
         connection.query(
           `insert into livechatcomments(Username,Message,Gift,channelId)values(?,?,?,?);`,
-          [Comment.Username, Comment.Message, Comment.Gift, LiveChannel],
+          [Comment.Username, Comment.Message, Comment.Gift, e.LiveChannel],
           (err, results, fields) => {
             if (err) reject(err);
           }
         );
-        io.to(LiveChannel).emit("Comment", Comment);
       }
     });
   });
@@ -300,7 +300,9 @@ const MakeTransiction = (SenderId, ReciverId, amount) => {
       (err, results, fields) => {
         if (err) reject(err);
         resolve(
-          results[0][0].res != "undefined" && results[0][0].res != null
+          results != null &&
+            results[0][0].res != "undefined" &&
+            results[0][0].res != null
             ? results[0][0].res
             : 0
         );
@@ -408,18 +410,6 @@ const endCallueue = (id) => {
       QueueLog.splice(index, 1);
     }
   });
-  // return new Promise((res, rej) => {
-  //   connection.query(
-  //     `delete from callqueue where Userid =?`,
-  //     [id],
-  //     (err, result, fields) => {
-  //       if (err) {
-  //         console.log("end call failled " + err);
-  //         rej(null);
-  //       } else res(result);
-  //     }
-  //   );
-  // });
 };
 
 /**
@@ -478,7 +468,8 @@ const CheckIfStreaming = (id) => {
       [id],
       (err, rows, field) => {
         if (err) reject(err);
-        resolve(rows[0].IsStreaming == 1);
+        if (rows != null) resolve(rows[0].IsStreaming == 1);
+        resolve(false);
       }
     );
   });

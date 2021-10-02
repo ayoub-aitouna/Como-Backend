@@ -67,8 +67,6 @@ Router.get("/Chat", (req, res) => {
   const Hash_id = req.query.Hash_id;
   const SenderId = req.query.SenderId;
   const receiverId = req.query.receiverId;
-  console.table([Hash_id, SenderId, receiverId]);
-  console.table([Hash_id, SenderId, receiverId]);
   if (Hash_id == null || Hash_id == "undefined" || Hash_id == "") {
     connection.query(
       `select message.id , DATE_FORMAT(message.sendTime, '%H:%i') as sendTime , DATE_FORMAT(message.readTime, '%H:%i') as readTime 
@@ -91,7 +89,6 @@ Router.get("/Chat", (req, res) => {
       [Hash_id],
       async (err, rows, field) => {
         if (err) return res.status(500).send(err);
-        console.log(rows);
         res.send(rows);
       }
     );
@@ -109,7 +106,6 @@ Router.get("/Read", (req, res) => {
 });
 
 Router.post("/Send", (req, res) => {
-  console.log(req.body);
   connection.query(
     `call SendMesage(?,?,?,?,?,?,?,?);`,
     [

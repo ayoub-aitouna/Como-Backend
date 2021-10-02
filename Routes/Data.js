@@ -104,7 +104,6 @@ Router.get("/PurchaseCoins", (req, res) => {
   );
 });
 Router.post("/DeleteUser", (req, res) => {
-  console.log(req.body.id);
   connection.query(
     `update  user set activationStatus=false where idUser = ?`,
     [req.body.id],
@@ -177,7 +176,6 @@ Router.get("/CheckFriends", (req, res) => {
     if (err) {
       res.sendStatus(404);
     } else {
-      console.table([result, req.query.Fav, req.query.User]);
       if (
         result[0].num != null &&
         result[0].num != "undefined" &&
@@ -218,7 +216,6 @@ const GetAllStories = async (rows) => {
   return data;
 };
 Router.get("/GetStories", async (req, res) => {
-  console.table([{ gettingStoryatid: req.query.UserId }]);
   let sqlQuery = `select user.idUser, user.name , user.profileImage 
   ,Day(stories.uploadTime) as 'day' from stories inner join user on stories.user_idUser = user.idUser
   where user.idUser =${mysql.escape(req.query.UserId)}
@@ -282,10 +279,8 @@ const GetAllUsers = async (rows, Userid) => {
     const item = await GetUserById(
       row.FirstUserID == Userid ? row.SecondtUserID : row.FirstUserID
     );
-    console.log(item);
     data.push(item);
   }
-  console.log(data);
   return data;
 };
 
@@ -429,7 +424,6 @@ const MakeTransiction = (SenderId, ReciverId, amount) => {
       [SenderId, ReciverId, amount],
       (err, results, fields) => {
         if (err) reject(err);
-        console.log("res " + results[0][0].res);
         resolve(results[0][0].res);
       }
     );
