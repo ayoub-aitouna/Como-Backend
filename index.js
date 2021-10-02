@@ -123,7 +123,11 @@ io.on("connection", (socket) => {
         Token: token,
         Channel: channel,
       });
-      await AddToHistory(req.id, UserID);
+      try {
+        const res = await AddToHistory(req.id, UserID);
+      } catch (err) {
+        console.log(err);
+      }
       socket.on("Gift", async (Gift) => {
         console.table(["Gift", Gift]);
         await MakeTransiction(Gift.id, Gift.reciver, Gift.amount);
@@ -358,13 +362,15 @@ const saveMessagetoDb = (Content) => {
  * @param {int} sUserId other user id
  * @description added match history to table in mysql
  */
-const AddToHistory = (FuserId, sUserId) => {
+const AddToHistory = (FuserId, SuserId) => {
   return new Promise((res, rej) => {
     connection.query(
       `insert into matchhistory(FirstUserID,SecondtUserID)values(?,?)`,
-      [FuserId, sUserId],
+      [FuserId, SuserId],
       (err, rows, field) => {
-        if (err) return rej(err);
+        if (err) {
+          return rej(err);
+        }
         res({ success: 1 });
       }
     );

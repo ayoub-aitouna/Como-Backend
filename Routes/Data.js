@@ -245,16 +245,21 @@ Router.get("/matchHistory", async (req, res) => {
   connection.query(
     `select  FirstUserID,SecondtUserID
     from matchhistory
-    where FirstUserID=10 or SecondtUserID =10
+    where FirstUserID=? or SecondtUserID =?
     group by FirstUserID,SecondtUserID`,
     [req.query.userId, req.query.userId],
     async (err, result, fields) => {
       if (err) return res.status(500).send(err);
-      const Users = await GetAllUsers(result, req.query.userId);
-      res.status(200).send(Users);
+      let Users = await GetAllUsers(result, req.query.userId);
+      const ids = Users.map((o) => o.idUser);
+      const filtered = Users.filter(
+        ({ idUser }, index) => !ids.includes(idUser, index + 1)
+      );
+      res.status(200).send(filtered);
     }
   );
 });
+
 Router.post("/UpdateUser", async (req, res) => {
   connection.query(
     `update user set user.name=${mysql.escape(req.body.name)},
