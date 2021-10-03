@@ -63,8 +63,15 @@ io.use(function (socket, next) {
 io.on("connection", (socket) => {
   let UserId = 0;
   socket.on("Connect", (e) => {
-    UserId = e.UserId;
-
+    UserId = e.UserId != "undefined" ? e.UserId : 0;
+    console.table([
+      e.hashId != "undefined"
+        ? e.hashId
+        : e.ReceiverId != "undefined"
+        ? e.ReceiverId
+        : "none",
+      e.UserId != "undefined" ? e.UserId : "none",
+    ]);
     socket.join([
       e.hashId != "undefined"
         ? e.hashId
@@ -73,18 +80,26 @@ io.on("connection", (socket) => {
         : "none",
       e.UserId != "undefined" ? e.UserId : "none",
     ]);
+
     socket.on("Send", (Content) => {
       saveMessagetoDb(Content);
       socket.to(Content.hashId).to(Content.ReceiverId).emit("Send", Content);
     });
+
     socket.on("newCall", (Content) => {
       socket.to(Content.ReceiverId).emit("newCall", Content);
     });
     socket.on("CallResponse", async (Content) => {
-      socket.handshake.session.StartDate = new Date();
-      socket.handshake.session.save();
       const channel = `${Content.userId}-channelcall-${Content.receiverId}`;
       const token = await Token(channel, RtcRole.PUBLISHER);
+      console.table([
+        {
+          token: token,
+          chnnel: channel,
+          userId: Content.userId,
+          otherID: Content.receiverId,
+        },
+      ]);
       socket.to(Content.userId).to(Content.ReceiverId).emit("CallResponse", {
         Token: token,
         channel: channel,
@@ -94,7 +109,6 @@ io.on("connection", (socket) => {
       });
     });
     socket.on("EnCall", (callinfo) => {
-      io.to(callinfo.receiverId).to(callinfo.SenderId).emit("EnCall", -1);
       saveMessagetoDb({
         contentImage: "",
         contentText: "",
@@ -107,6 +121,56 @@ io.on("connection", (socket) => {
       });
     });
   });
+
+  /*** */
+  // socket.on("Connect", (e) => {
+  //   console.table([e.hashId, e.ReceiverId, e.UserId]);
+  //   UserId = e.UserId;
+  //   socket.join([
+  //     e.hashId != "undefined"
+  //       ? e.hashId
+  //       : e.ReceiverId != "undefined"
+  //       ? e.ReceiverId
+  //       : "none",
+  //     e.UserId != "undefined" ? e.UserId : "none",
+  //   ]);
+  //   socket.on("Send", (Content) => {
+  //     saveMessagetoDb(Content);
+  //     console.log(
+  //       "send to :" + Content.hashId + " and  : " + Content.ReceiverId
+  //     );
+  //     io.to(Content.hashId).to(Content.ReceiverId).emit("Send", Content);
+  //   });
+  //   socket.on("newCall", (Content) => {
+  //     io.to(Content.ReceiverId).emit("newCall", Content);
+  //   });
+  //   socket.on("CallResponse", async (Content) => {
+  //     socket.handshake.session.StartDate = new Date();
+  //     socket.handshake.session.save();
+  //     const channel = `${Content.userId}-channelcall-${Content.receiverId}`;
+  //     const token = await Token(channel, RtcRole.PUBLISHER);
+  //     io.to(Content.userId).to(Content.ReceiverId).emit("CallResponse", {
+  //       Token: token,
+  //       channel: channel,
+  //       userId: Content.userId,
+  //       receiverId: Content.receiverId,
+  //       Answer: Content.Answer,
+  //     });
+  //   });
+  //   socket.on("EnCall", (callinfo) => {
+  //     io.to(callinfo.receiverId).to(callinfo.SenderId).emit("EnCall", -1);
+  //     saveMessagetoDb({
+  //       contentImage: "",
+  //       contentText: "",
+  //       contentAudio: "",
+  //       giftCoins: 0,
+  //       SenderId: callinfo.SenderId,
+  //       receiverId: callinfo.receiverId,
+  //       Hash_id: "",
+  //       Duration: callinfo.Duration,
+  //     });
+  //   });
+  // });
   socket.on("CallQueue", async (req) => {
     UserId = req.id;
     socket.join(req.id);
