@@ -72,14 +72,22 @@ io.on("connection", (socket) => {
         : "none",
       e.UserId != "undefined" ? e.UserId : "none",
     ]);
-    socket.join([
-      e.hashId != "undefined"
-        ? e.hashId
-        : e.ReceiverId != "undefined"
-        ? e.ReceiverId
-        : "none",
-      e.UserId != "undefined" ? e.UserId : "none",
-    ]);
+    if (e.hashId != "undefined") {
+      socket.join(e.hashId);
+    } else if (e.ReceiverId != "undefined") {
+      socket.join(e.ReceiverId);
+    }
+    if (e.UserId != "undefined") {
+      socket.join(e.UserId);
+    }
+    // socket.join([
+    //   e.hashId != "undefined"
+    //     ? e.hashId
+    //     : e.ReceiverId != "undefined"
+    //     ? e.ReceiverId
+    //     : "none",
+    //   e.UserId != "undefined" ? e.UserId : "none",
+    // ]);
 
     socket.on("Send", (Content) => {
       saveMessagetoDb(Content);

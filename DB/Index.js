@@ -1,9 +1,9 @@
 var mysql = require("mysql");
 var connection = mysql.createConnection({
-  host: "mysql-48654-0.cloudclusters.net",
+  host: "mysql-54645-0.cloudclusters.net",
   user: "admin",
-  port: 19757,
-  password: "xsLNEzmO",
+  port: 17796,
+  password: "mwjZW221",
   database: "appchat",
 });
 connection.connect(function (err) {
